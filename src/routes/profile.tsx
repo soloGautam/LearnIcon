@@ -1,11 +1,14 @@
 import { useNavigate, Link } from "react-router-dom";
 import { useUser } from "@/lib/store";
+import { useAuth } from "@/lib/auth-store";
 import { Mail, Sparkles, LogOut, ShieldCheck, Clock, Phone, Linkedin, Github, User, CheckCircle2, Edit3 } from "lucide-react";
 import { useState } from "react";
 
 function ProfilePage() {
   const [user, update] = useUser();
+  const [, , logout] = useAuth();
   const navigate = useNavigate();
+
 
   const contact = user.contact ?? { email: "", phone: "", linkedin: "", github: "", bio: "" };
   const [editing, setEditing] = useState(!contact.email);
@@ -26,13 +29,9 @@ function ProfilePage() {
   };
 
   const handleLogout = () => {
-    try {
-      localStorage.removeItem("learnico:user");
-      sessionStorage.removeItem("learnico:intro:v3");
-    } catch {}
-    navigate("/");
-    if (typeof window !== "undefined") window.location.reload();
+    logout();
   };
+
 
   const planHistory = [
     { name: "Pro", when: "Current plan", active: true },
