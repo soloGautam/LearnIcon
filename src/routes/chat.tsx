@@ -1,0 +1,253 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { PageHeader } from "@/components/PageHeader";
+import { Send, Sparkles, Loader2, FolderPlus } from "lucide-react";
+import { addXP, getUser, useUser, XP } from "@/lib/store";
+import { useXpToast } from "@/components/XpToast";
+import { getProject, createProject, getChat, saveChat, type ChatMessage, type ChatCard } from "@/lib/projects-store";
+
+
+const STEP_TONES = ["tone-blue", "tone-green", "tone-amber", "tone-pink", "tone-purple"];
+
+function CardView({ card, index }: { card: ChatCard; index: number }) {
+  if (card.kind === "intro") {
+    return (
+      <div className="rounded-2xl bg-gradient-to-br from-[oklch(0.92_0.08_300)] to-[oklch(0.94_0.07_350)] p-5 shadow-[var(--shadow-soft)]">
+        <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-[oklch(0.45_0.18_300)]">
+          <Sparkles className="size-3" /> Plan overview
+        </div>
+        <div className="mt-2 font-display text-xl text-foreground">{card.title}</div>
+        <p className="mt-2 whitespace-pre-line text-sm text-foreground/80">{card.body}</p>
+        {card.encouragement && (
+          <div className="mt-3 rounded-xl bg-white/60 px-3 py-2 text-xs italic text-foreground/70">
+            “{card.encouragement}”
+          </div>
+        )}
+      </div>
+    );
+  }
+  const tone = STEP_TONES[(index - 1) % STEP_TONES.length];
+  return (
+    <div className={`${tone} rounded-2xl p-5 shadow-[var(--shadow-soft)]`}>
+      <div className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-foreground/60">
+        <span>Step {index}</span>
+        <span className="grid size-6 place-items-center rounded-full bg-white/70 font-bold text-foreground/80">{index}</span>
+      </div>
+      <div className="mt-2 font-display text-lg text-foreground">{card.title}</div>
+      <p className="mt-1.5 whitespace-pre-line text-sm text-foreground/75">{card.body}</p>
+    </div>
+  );
+}
+
+function Chat() {
+  const navigate = useNavigate();
+  const [, update] = useUser();
+  const { show, ToastRenderer } = useXpToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const projectId = searchParams.get("project");
+  const project = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId]);
+
+  const [msgs, setMsgs] = useState<ChatMessage[]>(() => getChat(projectId));
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setMsgs(getChat(projectId));
+  }, [projectId]);
+
+  useEffect(() => {
+    saveChat(projectId, msgs);
+  }, [projectId, msgs]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, loading]);
+
+  const greeting: ChatMessage = useMemo(
+    () => ({
+      id: "greet",
+      role: "ai",
+      text: project
+        ? `Welcome back to "${project.name}". Tell me where you are and I'll give you the next 5 steps.`
+        : "Hi! What are we building today? Describe your idea — I'll create a project for you and lay out 5 steps.",
+      at: new Date().toISOString(),
+    }),
+    [project],
+  );
+
+  const visibleMsgs = msgs.length === 0 ? [greeting] : msgs;
+
+  async function send() {
+    if (!input.trim() || loading) return;
+    const userText = input.trim();
+    setInput("");
+    setError(null);
+
+    const userMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      text: userText,
+      at: new Date().toISOString(),
+    };
+    const nextMsgs = [...msgs.length === 0 ? [greeting] : msgs, userMsg];
+    setMsgs(nextMsgs);
+
+    // XP: every message = +10
+    const u = getUser();
+    const xpState = addXP(XP.AI_MESSAGE, "AI Chat message", { aiSessions: u.aiSessions + 1 });
+    update(xpState);
+    show(XP.AI_MESSAGE, "AI Chat");
+
+    setLoading(true);
+    try {
+      const history = nextMsgs
+        .filter((m) => m.text)
+        .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text! }));
+
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          history,
+          hasProject: !!project,
+          project: project ? { name: project.name, desc: project.desc, buildIn: project.buildIn } : null,
+        }),
+      });
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ error: `Request failed (${resp.status})` }));
+        throw new Error(err.error ?? `Request failed (${resp.status})`);
+      }
+      const data = await resp.json();
+      if (!data) throw new Error("Empty response");
+
+      let activeProjectId = projectId;
+      if (!project && data.projectSuggestion?.name) {
+        const created = createProject({
+          name: data.projectSuggestion.name,
+          desc: data.projectSuggestion.desc,
+          buildIn: data.projectSuggestion.buildIn,
+          recommendedTools: data.projectSuggestion.recommendedTools,
+        });
+        activeProjectId = created.id;
+        // Move conversation under the new project, then route there.
+        saveChat(created.id, nextMsgs);
+        setSearchParams({ project: created.id }, { replace: true });
+      }
+
+      const cards: ChatCard[] = [
+        {
+          kind: "intro",
+          title: data.intro?.title ?? "Here's the plan",
+          body: data.intro?.body ?? "",
+          encouragement: data.intro?.encouragement,
+        },
+        ...(Array.isArray(data.steps) ? data.steps : []).slice(0, 5).map((s: { title: string; body: string }) => ({
+          kind: "step" as const,
+          title: s.title,
+          body: s.body,
+        })),
+      ];
+
+      const aiMsg: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "ai",
+        cards,
+        at: new Date().toISOString(),
+      };
+
+      const finalMsgs = [...nextMsgs, aiMsg];
+      setMsgs(finalMsgs);
+      if (activeProjectId) saveChat(activeProjectId, finalMsgs);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Something went wrong.";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      {ToastRenderer}
+      <PageHeader
+        kicker={project ? `Project · ${project.name}` : "AI Chat"}
+        title={project ? project.name : "Your AI companion."}
+        sub={project ? project.desc : "Tell me your idea — I'll scaffold a project and give you 5 calm steps."}
+      />
+
+      {project && (
+        <div className="mb-3 flex items-center justify-between rounded-xl border border-border/60 bg-white/60 px-4 py-2 text-xs text-muted-foreground">
+          <span>Chatting inside <strong className="text-foreground">{project.name}</strong></span>
+          <button
+            onClick={() => navigate("/projects")}
+            className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-[11px] font-medium text-foreground/70 hover:bg-white/90"
+          >
+            <FolderPlus className="size-3" /> All projects
+          </button>
+        </div>
+      )}
+
+      <div className="glass-card flex h-[68vh] flex-col">
+        <div className="flex-1 space-y-4 overflow-y-auto p-5">
+          {visibleMsgs.map((m) => (
+            <div key={m.id} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              {m.role === "user" ? (
+                <div className="max-w-[80%] rounded-2xl bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+                  {m.text}
+                </div>
+              ) : m.cards ? (
+                <div className="w-full max-w-full space-y-3">
+                  {m.cards.map((c, i) => (
+                    <CardView key={i} card={c} index={i} />
+                  ))}
+                </div>
+              ) : (
+                <div className="max-w-[80%] rounded-2xl bg-[oklch(0.96_0.03_290)] px-4 py-2.5 text-sm text-foreground">
+                  {m.text}
+                </div>
+              )}
+            </div>
+          ))}
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" /> Thinking through your plan…
+            </div>
+          )}
+          {error && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              {error}
+            </div>
+          )}
+          <div ref={endRef} />
+        </div>
+        <div className="flex items-center gap-2 border-t border-border/60 p-3">
+          <Sparkles className="ml-2 size-4 text-primary" />
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send())}
+            placeholder={project ? "Ask a question about your project…" : "Describe what you want to build…"}
+            className="flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
+            disabled={loading}
+          />
+          <button
+            onClick={send}
+            disabled={loading || !input.trim()}
+            className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground hover:opacity-95 disabled:opacity-40"
+          >
+            <Send className="size-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 text-center text-xs text-muted-foreground">
+        +{XP.AI_MESSAGE} XP per message · Code edits in Studio earn +{XP.CODE_EDIT} XP · Completing a project earns +{XP.PROJECT_COMPLETE} XP
+      </div>
+    </div>
+  );
+}
+
+export default Chat;
