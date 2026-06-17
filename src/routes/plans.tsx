@@ -1,9 +1,10 @@
 
-import { Check, Crown, Sparkles, Rocket, Star } from "lucide-react";
+import { Check, Crown, Sparkles, Rocket, Star, Zap } from "lucide-react";
 import { CrystalParticles } from "@/components/CrystalParticles";
+import { useCredits, type PlanTier, PLAN_ALLOWANCE, CREDIT_COST } from "@/lib/credits-store";
 
 type Plan = {
-  name: string;
+  name: PlanTier;
   price: string;
   cadence: string;
   tagline: string;
@@ -21,7 +22,12 @@ const plans: Plan[] = [
     price: "$0",
     cadence: "free forever",
     tagline: "Start your AI journey, no card needed.",
-    features: ["10 AI questions daily", "Basic editor", "Community leaderboard", "Ads shown"],
+    features: [
+      `${PLAN_ALLOWANCE.Explorer} AI credits / month`,
+      "Powered by Claude Haiku 4.5",
+      "Basic editor",
+      "Community leaderboard",
+    ],
     cta: "Start free",
     tone: "blue",
     icon: <Sparkles className="size-5" />,
@@ -31,7 +37,13 @@ const plans: Plan[] = [
     price: "$6",
     cadence: "per month",
     tagline: "For students shipping their first real projects.",
-    features: ["100 AI questions daily", "Full editor", "Concept quizzes", "XP leaderboard", "Priority support", "Fewer ads"],
+    features: [
+      `${PLAN_ALLOWANCE.Builder.toLocaleString()} AI credits / month`,
+      "Full editor + Code Studio",
+      "Concept quizzes",
+      "XP leaderboard",
+      "Priority support",
+    ],
     cta: "Become a Builder",
     tone: "green",
     icon: <Rocket className="size-5" />,
@@ -41,7 +53,14 @@ const plans: Plan[] = [
     price: "$12",
     cadence: "per month",
     tagline: "For builders preparing to get hired.",
-    features: ["Unlimited AI questions", "Advanced editor", "Quiz analytics", "Placement profile", "Verified builder badge", "No ads"],
+    features: [
+      `${PLAN_ALLOWANCE.Pro.toLocaleString()} AI credits / month`,
+      "Advanced editor",
+      "Quiz analytics",
+      "Placement profile",
+      "Verified builder badge",
+      "No ads",
+    ],
     cta: "Go Pro",
     badge: "Most Popular",
     tone: "pink",
@@ -53,7 +72,14 @@ const plans: Plan[] = [
     price: "$99",
     cadence: "per year",
     tagline: "For teams, founders & power users.",
-    features: ["Everything in Pro", "Team workspace (up to 10)", "White-glove onboarding", "Custom AI persona", "API access", "Admin dashboard", "No ads"],
+    features: [
+      `${PLAN_ALLOWANCE.Titan.toLocaleString()} AI credits / month for a year`,
+      "Everything in Pro",
+      "Team workspace (up to 10)",
+      "White-glove onboarding",
+      "Custom AI persona",
+      "API access",
+    ],
     cta: "Become a Titan",
     badge: "Best Value",
     tone: "blue",
@@ -62,7 +88,7 @@ const plans: Plan[] = [
   },
 ];
 
-function PlanCard({ p }: { p: Plan }) {
+function PlanCard({ p, current, onSelect }: { p: Plan; current: boolean; onSelect: () => void }) {
   const toneClass = { blue: "tone-blue", green: "tone-green", purple: "tone-purple", amber: "tone-amber", pink: "tone-pink" }[p.tone];
   const isPro = p.name === "Pro";
   const isTitan = p.name === "Titan";
@@ -80,6 +106,7 @@ function PlanCard({ p }: { p: Plan }) {
         <div className="flex items-center gap-3">
           <div className="grid size-10 place-items-center rounded-2xl bg-white/80 text-foreground/80">{p.icon}</div>
           <div className="font-display text-2xl text-foreground">{p.name}</div>
+          {current && <span className="ml-auto rounded-full bg-foreground px-2 py-0.5 text-[10px] font-semibold text-background">Current</span>}
         </div>
         <p className="mt-2 text-sm text-foreground/70">{p.tagline}</p>
 
@@ -100,8 +127,10 @@ function PlanCard({ p }: { p: Plan }) {
         </ul>
 
         <button
+          onClick={onSelect}
+          disabled={current}
           className={
-            "mt-6 w-full rounded-xl px-4 py-3 text-sm font-medium transition-all " +
+            "mt-6 w-full rounded-xl px-4 py-3 text-sm font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed " +
             (isPro
               ? "bg-gradient-to-r from-[oklch(0.7_0.17_350)] to-[oklch(0.65_0.18_300)] text-white shadow-[0_8px_28px_oklch(0.7_0.18_350/0.4)] hover:opacity-95"
               : isTitan
@@ -109,7 +138,7 @@ function PlanCard({ p }: { p: Plan }) {
                 : "bg-white text-foreground border border-border hover:bg-white/90")
           }
         >
-          {p.cta}
+          {current ? "Your current plan" : p.cta}
         </button>
       </div>
     </div>
@@ -117,19 +146,32 @@ function PlanCard({ p }: { p: Plan }) {
 }
 
 function PlansPage() {
+  const { state, remaining, allowance, setPlan } = useCredits();
   return (
     <div className="mx-auto max-w-[1400px] animate-float-up">
       <div className="mb-10 text-center">
-        <div className="text-xs font-medium uppercase tracking-wider text-primary">Pricing</div>
+        <div className="text-xs font-medium uppercase tracking-wider text-primary">Pricing · Powered by Claude Haiku 4.5</div>
         <h1 className="mt-2 font-display text-4xl md:text-5xl text-foreground">Choose your launchpad.</h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
-          One quiet, beautiful interface. Four tiers — from your first AI question to your first paid AI role.
+          One quiet, beautiful interface. Four tiers — credits power every AI response, long answer, and code generation.
         </p>
+        <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1.5 text-xs text-foreground/80 shadow-sm">
+          <Zap className="size-3 text-primary" />
+          <strong>{remaining}</strong> / {allowance} credits left · {state.plan} plan
+        </div>
+        <div className="mt-3 text-[11px] text-muted-foreground">
+          AI response = {CREDIT_COST.AI_RESPONSE} credits · Long response = {CREDIT_COST.AI_RESPONSE_LONG} credits · Code generation = {CREDIT_COST.CODE_GENERATION} credits
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5 mt-10">
         {plans.map((p) => (
-          <PlanCard key={p.name} p={p} />
+          <PlanCard
+            key={p.name}
+            p={p}
+            current={state.plan === p.name}
+            onSelect={() => setPlan(p.name)}
+          />
         ))}
       </div>
 

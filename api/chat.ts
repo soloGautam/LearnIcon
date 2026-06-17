@@ -59,7 +59,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     const client = new Anthropic({ apiKey });
     const resp = await client.messages.create({
-      model: "claude-3-5-sonnet-latest",
+      model: "claude-haiku-4-5",
       max_tokens: 2048,
       system: `${SYSTEM_PROMPT}\n\n${contextLine}\n\nRespond now with ONLY the JSON object.`,
       messages: body.history.map((m) => ({ role: m.role, content: m.content })),
@@ -92,7 +92,17 @@ export default async function handler(req: Request): Promise<Response> {
 
     const projectSuggestion = (parsed as any).projectSuggestion ?? null;
 
-    return Response.json({ intro, steps, projectSuggestion });
+    // Credit cost classification:
+    //   base AI response   = 2 credits
+    //   long AI response   = 5 credits  (>1200 chars total)
+    //   code generation    = 7 credits  (project suggestion with buildIn = "app")
+    const totalChars =
+      (intro?.body?.length ?? 0) + steps.reduce((acc: number, s: any) => acc + (s.body?.length ?? 0), 0);
+    let creditCost = 2;
+    if (totalChars > 1200) creditCost = 5;
+    if (projectSuggestion?.buildIn === "app") creditCost = 7;
+
+    return Response.json({ intro, steps, projectSuggestion, creditCost });
   } catch (e: any) {
     const status = e?.status ?? 500;
     const message =

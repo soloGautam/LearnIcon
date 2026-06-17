@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
-import { Send, Sparkles, Loader2, FolderPlus } from "lucide-react";
+import { Send, Sparkles, Loader2, FolderPlus, Zap } from "lucide-react";
 import { addXP, getUser, useUser, XP } from "@/lib/store";
 import { useXpToast } from "@/components/XpToast";
 import { getProject, createProject, getChat, saveChat, type ChatMessage, type ChatCard } from "@/lib/projects-store";
+import { useCredits, canSpend, spendCredits, CREDIT_COST } from "@/lib/credits-store";
 
 
 const STEP_TONES = ["tone-blue", "tone-green", "tone-amber", "tone-pink", "tone-purple"];
@@ -43,6 +44,7 @@ function Chat() {
   const navigate = useNavigate();
   const [, update] = useUser();
   const { show, ToastRenderer } = useXpToast();
+  const { state: credits, remaining, allowance } = useCredits();
   const [searchParams, setSearchParams] = useSearchParams();
   const projectId = searchParams.get("project");
   const project = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId]);
@@ -81,6 +83,11 @@ function Chat() {
 
   async function send() {
     if (!input.trim() || loading) return;
+    // Reserve credits up-front using the minimum cost (2). Refunded/topped-up after the response based on actual cost.
+    if (!canSpend(CREDIT_COST.AI_RESPONSE)) {
+      setError(`You're out of credits this month (${allowance} included on the ${credits.plan} plan). Upgrade your plan to keep building.`);
+      return;
+    }
     const userText = input.trim();
     setInput("");
     setError(null);
@@ -161,6 +168,10 @@ function Chat() {
       const finalMsgs = [...nextMsgs, aiMsg];
       setMsgs(finalMsgs);
       if (activeProjectId) saveChat(activeProjectId, finalMsgs);
+
+      // Deduct credits based on actual server-reported cost
+      const cost = typeof data.creditCost === "number" ? data.creditCost : CREDIT_COST.AI_RESPONSE;
+      spendCredits(cost, cost >= CREDIT_COST.CODE_GENERATION ? "Code generation" : cost >= CREDIT_COST.AI_RESPONSE_LONG ? "Long AI response" : "AI response");
     } catch (e) {
       const message = e instanceof Error ? e.message : "Something went wrong.";
       setError(message);
@@ -243,8 +254,12 @@ function Chat() {
         </div>
       </div>
 
-      <div className="mt-3 text-center text-xs text-muted-foreground">
-        +{XP.AI_MESSAGE} XP per message · Code edits in Studio earn +{XP.CODE_EDIT} XP · Completing a project earns +{XP.PROJECT_COMPLETE} XP
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-center text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1">
+          <Zap className="size-3 text-primary" />
+          <strong className="text-foreground">{remaining}</strong> / {allowance} credits · {credits.plan}
+        </span>
+        <span>AI response = {CREDIT_COST.AI_RESPONSE} cr · Long = {CREDIT_COST.AI_RESPONSE_LONG} cr · Code gen = {CREDIT_COST.CODE_GENERATION} cr</span>
       </div>
     </div>
   );
