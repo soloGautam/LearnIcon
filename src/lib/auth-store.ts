@@ -74,6 +74,7 @@ const APP_LOCAL_KEYS = [
   "learnico:projects",
   "learnico:jobs",
   "learnico:active-project",
+  "learnico:credits",
   "selectedProject",
 ];
 
@@ -88,7 +89,7 @@ export function clearAuth(): void {
     Object.keys(localStorage)
       .filter((k) => k.startsWith("learnico:chat:"))
       .forEach((k) => localStorage.removeItem(k));
-    // Intro replay flags, etc.
+    // Clear sessionStorage entirely (intro flags, session state, etc.)
     sessionStorage.clear();
   } catch {}
 }
@@ -104,7 +105,10 @@ export function useAuth(): [AuthState, (patch: Partial<AuthState>) => void, () =
   const logout = () => {
     clearAuth();
     setState(DEFAULT_AUTH);
-    if (typeof window !== "undefined") window.location.href = "/login";
+    if (typeof window !== "undefined") {
+      // Use replace to prevent back button from going back to authenticated pages
+      window.location.replace("/login");
+    }
   };
 
   return [state, update, logout];

@@ -1,6 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
 import { useUser } from "@/lib/store";
-import { ALL_LEARNERS } from "@/lib/learners-data";
 import { Trophy, CheckCircle2, Star, Users } from "lucide-react";
 
 const RANK_GRADIENT = [
@@ -12,26 +11,23 @@ const RANK_GRADIENT = [
 function LeaderboardPage() {
   const [user] = useUser();
 
-  const meEntry = {
-    id: "me",
-    rank: 0,
-    name: user.name || "You",
-    role: "You",
-    xp: user.xpTotal,
-    level: user.level,
-    hasBuilderBadge: user.level >= 10,
-    plan: user.plan,
-    isMe: true,
-  };
-
+  // Only show the real logged-in user
+  // As more learners sign up, they will appear here through actual app data
   const combined = [
-    ...ALL_LEARNERS.map((l) => ({ ...l, isMe: false })),
-    meEntry,
-  ]
-    .sort((a, b) => b.xp - a.xp)
-    .map((l, i) => ({ ...l, rank: i + 1 }));
+    {
+      id: "me",
+      rank: 1,
+      name: user.name || "You",
+      role: "Builder",
+      xp: user.xpTotal,
+      level: user.level,
+      hasBuilderBadge: user.level >= 10,
+      plan: user.plan,
+      isMe: true,
+    },
+  ];
 
-  const myRank = combined.find((l) => l.id === "me")?.rank ?? combined.length;
+  const myRank = 1;
 
   return (
     <div className="mx-auto max-w-[900px]">
@@ -111,11 +107,9 @@ function LeaderboardPage() {
         </div>
       </div>
 
-      {ALL_LEARNERS.length === 0 && (
-        <div className="mt-4 flex items-center gap-3 rounded-2xl border border-dashed border-border bg-white/40 px-5 py-4 text-xs text-muted-foreground">
-          <Users className="size-4" /> Other learners will appear here as they earn XP.
-        </div>
-      )}
+      <div className="mt-4 flex items-center gap-3 rounded-2xl border border-dashed border-border bg-white/40 px-5 py-4 text-xs text-muted-foreground">
+        <Users className="size-4" /> Other learners will appear here as they join and earn XP. Keep building!
+      </div>
     </div>
   );
 }

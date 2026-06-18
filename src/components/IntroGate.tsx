@@ -1,23 +1,29 @@
 import { useEffect, useState } from "react";
-import { IntroAnimation } from "./IntroAnimation";
+import { CinematicIntro } from "./CinematicIntro";
 
 export function IntroGate() {
   const [show, setShow] = useState(false);
-  const introKey = "learnico:intro:v3";
+  const introKey = "learnico:intro:cinematic";
 
   useEffect(() => {
     try {
-      if (!sessionStorage.getItem(introKey)) setShow(true);
+      // Show intro only on first visit; after that, skip it
+      if (!sessionStorage.getItem(introKey)) {
+        setShow(true);
+      }
     } catch {
       setShow(true);
     }
   }, []);
 
   if (!show) return null;
+
   return (
-    <IntroAnimation
+    <CinematicIntro
       onDone={() => {
-        try { sessionStorage.setItem(introKey, "1"); } catch {}
+        try {
+          sessionStorage.setItem(introKey, "1");
+        } catch {}
         setShow(false);
       }}
     />
