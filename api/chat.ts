@@ -31,7 +31,7 @@ interface Body {
 
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 
-export default async function handler(req: Request): Promise<Response> {
+export async function POST(req: Request): Promise<Response> {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -136,12 +136,11 @@ export default async function handler(req: Request): Promise<Response> {
 
     const projectSuggestion = (parsed as any).projectSuggestion ?? null;
 
-    // Calculate credit cost dynamically
     const totalChars =
       (intro?.body?.length ?? 0) + steps.reduce((acc: number, s: any) => acc + (s.body?.length ?? 0), 0);
-    let creditCost = 2; // base response
-    if (totalChars > 1200) creditCost = 5; // long response
-    if (projectSuggestion?.buildIn === "app") creditCost = 7; // code generation
+    let creditCost = 2;
+    if (totalChars > 1200) creditCost = 5;
+    if (projectSuggestion?.buildIn === "app") creditCost = 7;
 
     return Response.json(
       { intro, steps, projectSuggestion, creditCost },
