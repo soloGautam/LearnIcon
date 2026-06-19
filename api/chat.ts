@@ -31,6 +31,9 @@ export default async function handler(req: Request): Promise<Response> {
       ? `User is working on: ${body.project.name}. Don't suggest new projects.`
       : "If user describes an idea, suggest a project.";
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -38,6 +41,7 @@ export default async function handler(req: Request): Promise<Response> {
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
+      signal: controller.signal,
       body: JSON.stringify({
         model: "claude-haiku-4-5-20241022",
         max_tokens: 1024,
@@ -45,6 +49,8 @@ export default async function handler(req: Request): Promise<Response> {
         messages,
       }),
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const status = response.status;
