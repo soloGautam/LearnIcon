@@ -29,9 +29,7 @@ interface Body {
   project: { name: string; desc: string; buildIn?: string } | null;
 }
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
-
-export async function POST(req: Request): Promise<Response> {
+export default async function handler(req: Request): Promise<Response> {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -45,10 +43,10 @@ export async function POST(req: Request): Promise<Response> {
     return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return Response.json(
-      { error: "GEMINI_API_KEY is not configured. Add it to Vercel → Settings → Environment Variables." },
+      { error: "ANTHROPIC_API_KEY is not configured. Add it to Vercel → Settings → Environment Variables." },
       { status: 500, headers: corsHeaders }
     );
   }
@@ -60,47 +58,47 @@ export async function POST(req: Request): Promise<Response> {
         ? `The user is working inside an existing project named "${body.project.name}" — ${body.project.desc}. Do not propose a new project.`
         : "The user has no active project. If their message describes an idea, suggest one.";
 
-    const systemText = `${SYSTEM_PROMPT}\n\n${contextLine}\n\nRespond now with ONLY the JSON object.`;
-
-    const contents = body.history.map((m) => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{ text: m.content }],
+    const messages = body.history.map((m) => ({
+      role: m.role,
+      content: m.content,
     }));
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent?key=${apiKey}`;
-
-    const geminiRes = await fetch(url, {
+    // Use Claude Haiku 4.5 for faster, cheaper responses (perfect for free tier)
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
       body: JSON.stringify({
-        systemInstruction: { role: "system", parts: [{ text: systemText }] },
-        contents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-          responseMimeType: "application/json",
-        },
+        model: "claude-haiku-4-5-20241022",
+        max_tokens: 1024,
+        system: `${SYSTEM_PROMPT}\n\n${contextLine}\n\nRespond now with ONLY the JSON object.`,
+        messages,
       }),
     });
 
-    if (!geminiRes.ok) {
-      const status = geminiRes.status;
+    if (!response.ok) {
+      const status = response.status;
       const message =
         status === 429
-          ? "Rate limit hit — please wait and try again."
+          ? "Rate limit hit — please wait a moment and try again."
           : status === 401 || status === 403
-            ? "Invalid GEMINI_API_KEY. Check your Vercel environment variables."
+            ? "Invalid ANTHROPIC_API_KEY. Check your Vercel environment variables."
             : status === 400
-              ? "Bad request to Gemini API."
-              : "Gemini request failed.";
+              ? "Bad request to Claude API."
+              : "Claude API request failed.";
       return Response.json({ error: message }, { status, headers: corsHeaders });
     }
 
-    const data = (await geminiRes.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    const data = (await response.json()) as {
+      content?: { type: string; text?: string }[];
     };
     const content =
-      data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "{}";
+      data.content
+        ?.find((b) => b.type === "text")
+        ?.text ?? "{}";
 
     let parsed: Record<string, unknown>;
     try {
@@ -136,11 +134,12 @@ export async function POST(req: Request): Promise<Response> {
 
     const projectSuggestion = (parsed as any).projectSuggestion ?? null;
 
+    // Calculate credit cost dynamically
     const totalChars =
       (intro?.body?.length ?? 0) + steps.reduce((acc: number, s: any) => acc + (s.body?.length ?? 0), 0);
-    let creditCost = 2;
-    if (totalChars > 1200) creditCost = 5;
-    if (projectSuggestion?.buildIn === "app") creditCost = 7;
+    let creditCost = 2; // base response
+    if (totalChars > 1200) creditCost = 5; // long response
+    if (projectSuggestion?.buildIn === "app") creditCost = 7; // code generation
 
     return Response.json(
       { intro, steps, projectSuggestion, creditCost },
