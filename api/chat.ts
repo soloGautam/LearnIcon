@@ -1,7 +1,5 @@
-export const config = { runtime: "nodejs" };
-
-export default async function handler(req: Request) {
-  return Response.json({
+export default function handler(req: any, res: any) {
+  res.status(200).json({
     ok: true,
     method: req.method,
   });
