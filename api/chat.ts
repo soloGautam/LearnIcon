@@ -63,90 +63,126 @@ export default async function handler(req: Request): Promise<Response> {
       content: m.content,
     }));
 
-    // Use Claude Haiku 4.5 for faster, cheaper responses (perfect for free tier)
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20241022",
-        max_tokens: 1024,
-        system: `${SYSTEM_PROMPT}\n\n${contextLine}\n\nRespond now with ONLY the JSON object.`,
-        messages,
-      }),
-    });
+    // Use AbortController for timeout (30 seconds)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-    if (!response.ok) {
-      const status = response.status;
-      const message =
-        status === 429
-          ? "Rate limit hit — please wait a moment and try again."
-          : status === 401 || status === 403
-            ? "Invalid ANTHROPIC_API_KEY. Check your Vercel environment variables."
-            : status === 400
-              ? "Bad request to Claude API."
-              : "Claude API request failed.";
-      return Response.json({ error: message }, { status, headers: corsHeaders });
-    }
-
-    const data = (await response.json()) as {
-      content?: { type: string; text?: string }[];
-    };
-    const content =
-      data.content
-        ?.find((b) => b.type === "text")
-        ?.text ?? "{}";
-
-    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(content);
-    } catch {
-      const start = content.indexOf("{");
-      const end = content.lastIndexOf("}");
-      if (start >= 0 && end > start) {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-haiku-4-5-20241022",
+          max_tokens: 1024,
+          system: `${SYSTEM_PROMPT}\n\n${contextLine}\n\nRespond now with ONLY the JSON object.`,
+          messages,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const status = response.status;
+        let errorMsg = "Claude API error";
+
         try {
-          parsed = JSON.parse(content.slice(start, end + 1));
+          const errData = await response.json();
+          errorMsg = errData.error?.message || errorMsg;
         } catch {
+          errorMsg = `API error ${status}`;
+        }
+
+        const message =
+          status === 429
+            ? "Rate limit hit — please wait a moment."
+            : status === 401 || status === 403
+              ? "Invalid ANTHROPIC_API_KEY — check Vercel environment variables."
+              : status === 400
+                ? `Bad request: ${errorMsg}`
+                : errorMsg;
+
+        return Response.json({ error: message }, { status, headers: corsHeaders });
+      }
+
+      const data = (await response.json()) as {
+        content?: { type: string; text?: string }[];
+      };
+      const content =
+        data.content
+          ?.find((b) => b.type === "text")
+          ?.text ?? "{}";
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        const start = content.indexOf("{");
+        const end = content.lastIndexOf("}");
+        if (start >= 0 && end > start) {
+          try {
+            parsed = JSON.parse(content.slice(start, end + 1));
+          } catch {
+            parsed = {};
+          }
+        } else {
           parsed = {};
         }
-      } else {
-        parsed = {};
       }
+
+      const intro =
+        (parsed as any).intro ?? {
+          title: "Here's the plan",
+          body: String(content).slice(0, 500),
+          encouragement: "Let's build it.",
+        };
+      const stepsRaw = Array.isArray((parsed as any).steps)
+        ? (parsed as any).steps
+        : [];
+      const steps = stepsRaw.slice(0, 5).map((s: any, i: number) => ({
+        title: String(s?.title ?? `Step ${i + 1}`),
+        body: String(s?.body ?? ""),
+      }));
+      while (steps.length < 5) {
+        steps.push({ title: `Step ${steps.length + 1}`, body: "" });
+      }
+
+      const projectSuggestion = (parsed as any).projectSuggestion ?? null;
+
+      // Calculate credit cost dynamically
+      const totalChars =
+        (intro?.body?.length ?? 0) +
+        steps.reduce((acc: number, s: any) => acc + (s.body?.length ?? 0), 0);
+      let creditCost = 2; // base response
+      if (totalChars > 1200) creditCost = 5; // long response
+      if (projectSuggestion?.buildIn === "app") creditCost = 7; // code generation
+
+      return Response.json(
+        { intro, steps, projectSuggestion, creditCost },
+        { headers: corsHeaders }
+      );
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutId);
+
+      if (fetchErr.name === "AbortError") {
+        return Response.json(
+          { error: "Request timeout — Claude API took too long to respond." },
+          { status: 504, headers: corsHeaders }
+        );
+      }
+
+      throw fetchErr;
     }
-
-    const intro =
-      (parsed as any).intro ?? {
-        title: "Here's the plan",
-        body: String(content).slice(0, 500),
-        encouragement: "Let's build it.",
-      };
-    const stepsRaw = Array.isArray((parsed as any).steps) ? (parsed as any).steps : [];
-    const steps = stepsRaw.slice(0, 5).map((s: any, i: number) => ({
-      title: String(s?.title ?? `Step ${i + 1}`),
-      body: String(s?.body ?? ""),
-    }));
-    while (steps.length < 5) {
-      steps.push({ title: `Step ${steps.length + 1}`, body: "" });
-    }
-
-    const projectSuggestion = (parsed as any).projectSuggestion ?? null;
-
-    // Calculate credit cost dynamically
-    const totalChars =
-      (intro?.body?.length ?? 0) + steps.reduce((acc: number, s: any) => acc + (s.body?.length ?? 0), 0);
-    let creditCost = 2; // base response
-    if (totalChars > 1200) creditCost = 5; // long response
-    if (projectSuggestion?.buildIn === "app") creditCost = 7; // code generation
-
-    return Response.json(
-      { intro, steps, projectSuggestion, creditCost },
-      { headers: corsHeaders }
-    );
   } catch (e: any) {
     const message = e?.message ?? "Unknown error";
-    return Response.json({ error: message }, { status: 500, headers: corsHeaders });
+    console.error("Chat API Error:", message, e);
+    return Response.json(
+      { error: `Server error: ${message}` },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }
