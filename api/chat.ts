@@ -1,23 +1,21 @@
 export const config = { runtime: "nodejs" };
 
 export default async function handler(req: Request) {
-  console.log("STEP 1");
+  if (req.method === "GET") {
+    return Response.json({
+      ok: true,
+      route: "/api/chat",
+    });
+  }
 
   try {
-    console.log("STEP 2");
-
     const body = await req.json();
-
-    console.log("STEP 3");
-    console.log(JSON.stringify(body).slice(0, 200));
 
     return Response.json({
       success: true,
-      received: true,
+      received: body,
     });
   } catch (e: any) {
-    console.error("ERROR", e);
-
     return Response.json(
       {
         error: e?.message || "unknown",
