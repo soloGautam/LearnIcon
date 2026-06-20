@@ -127,7 +127,8 @@ function Chat() {
         buildIn: project.buildIn,
       }
     : null,
-}),
+  }),
+});
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: `Request failed (${resp.status})` }));
