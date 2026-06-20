@@ -117,11 +117,17 @@ function Chat() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          history,
-          hasProject: !!project,
-          project: project ? { name: project.name, desc: project.desc, buildIn: project.buildIn } : null,
-        }),
-      });
+  message: userMsg.text,
+  history,
+  hasProject: !!project,
+  project: project
+    ? {
+        name: project.name,
+        desc: project.desc,
+        buildIn: project.buildIn,
+      }
+    : null,
+}),
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: `Request failed (${resp.status})` }));
