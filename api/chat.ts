@@ -316,23 +316,24 @@ const cleaned = text
   .replace(/```json/g, "")
   .replace(/```/g, "")
   .trim();
-
 try {
-  const parsed = JSON.parse(cleaned);
+const parsed = JSON.parse(cleaned);
 
-  return res.status(200).json(parsed);
+return res.status(200).json(parsed);
 } catch {
-  return res.status(200).json({
-    type: "chat",
-    message: cleaned,
-  });
+return res.status(200).json({
+type: "chat",
+message: cleaned,
+});
 }
-   catch (e: any) {
-    console.error(e);
 
-    return res.status(500).json({
-      success: false,
-      error: e?.message || "Unknown error",
-    });
-  }
+} catch (e: any) {
+console.error(e);
+
+return res.status(500).json({
+success: false,
+error: e?.message || "Unknown error",
+});
 }
+}
+
