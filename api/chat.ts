@@ -17,16 +17,23 @@ export default async function handler(req: any, res: any) {
       ],
     });
 
-    const text =
-      msg.content.find((c: any) => c.type === "text")?.text ||
-      "No response";
+    let text = "No response";
 
-    res.status(200).json({
+    if (
+      msg.content.length > 0 &&
+      msg.content[0].type === "text"
+    ) {
+      text = msg.content[0].text;
+    }
+
+    return res.status(200).json({
       success: true,
       reply: text,
     });
   } catch (e: any) {
-    res.status(500).json({
+    console.error(e);
+
+    return res.status(500).json({
       success: false,
       error: e?.message || "Unknown error",
     });
