@@ -317,14 +317,6 @@ const cleaned = text
   .replace(/```/g, "")
   .trim();
 
-const text = result.response.text();
-
-const cleaned = text
-  .replace(/```json/g, "")
-  .replace(/```/g, "")
-  .trim();
-
-
 try {
   const parsed = JSON.parse(cleaned);
 
