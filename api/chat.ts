@@ -1,34 +1,70 @@
-import Anthropic from "@anthropic-ai/sdk";
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export default async function handler(req: any, res: any) {
   try {
-    const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20241022",
-      max_tokens: 100,
-      messages: [
-        {
-          role: "user",
-          content: "Reply with only: LearnIcon Claude Connected",
-        },
-      ],
+    const apiKey = process.env.GEMINI_API_KEY;
+
+    if (!apiKey) {
+      return res.status(500).json({
+        success: false,
+        error: "GEMINI_API_KEY missing",
+      });
+    }
+
+    const body = req.body || {};
+    const userPrompt = body.message || "Build a simple project";
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
     });
 
-    let text = "No response";
+    const prompt = `
+You are LearnIcon AI.
 
-    if (
-      msg.content.length > 0 &&
-      msg.content[0].type === "text"
-    ) {
-      text = msg.content[0].text;
+Return ONLY valid JSON.
+
+Format:
+
+{
+  "overview": {
+    "title": "",
+    "content": ""
+  },
+  "steps": [
+    {
+      "title": "",
+      "content": ""
     }
+  ],
+  "quiz": [
+    {
+      "question": "",
+      "options": ["","","",""],
+      "answer": ""
+    }
+  ]
+}
+
+Rules:
+- overview = 1 item
+- steps = exactly 5 items
+- quiz = exactly 5 questions
+- no markdown
+- no explanations outside JSON
+
+User Request:
+${userPrompt}
+`;
+
+    const result = await model.generateContent(prompt);
+
+    const text = result.response.text();
 
     return res.status(200).json({
       success: true,
-      reply: text,
+      raw: text,
     });
   } catch (e: any) {
     console.error(e);
