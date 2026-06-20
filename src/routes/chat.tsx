@@ -137,10 +137,7 @@ function Chat() {
       const data = await resp.json();
 if (!data) throw new Error("Empty response");
 
-const aiData =
-  typeof data.raw === "string"
-    ? JSON.parse(data.raw)
-    : data;
+const aiData = data;
       let activeProjectId = projectId;
       if (!project && data.projectSuggestion?.name) {
         const created = createProject({

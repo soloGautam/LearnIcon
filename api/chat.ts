@@ -312,11 +312,30 @@ ${userPrompt}
 
     const text = result.response.text();
 
-    return res.status(200).json({
-      success: true,
-      raw: text,
-    });
-  } catch (e: any) {
+const cleaned = text
+  .replace(/```json/g, "")
+  .replace(/```/g, "")
+  .trim();
+
+const text = result.response.text();
+
+const cleaned = text
+  .replace(/```json/g, "")
+  .replace(/```/g, "")
+  .trim();
+
+
+try {
+  const parsed = JSON.parse(cleaned);
+
+  return res.status(200).json(parsed);
+} catch {
+  return res.status(200).json({
+    type: "chat",
+    message: cleaned,
+  });
+}
+   catch (e: any) {
     console.error(e);
 
     return res.status(500).json({
