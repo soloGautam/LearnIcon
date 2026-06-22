@@ -479,6 +479,7 @@ If the uploaded file contains code:
 `
 : ""
 }
+`;
 
     const result = await model.generateContent(prompt);
 
