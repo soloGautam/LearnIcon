@@ -123,15 +123,6 @@ if (selectedFile) {
     content: await selectedFile.text(),
   };
 }
-
-let uploadedFile = null;
-
-if (selectedFile) {
-  uploadedFile = {
-    name: selectedFile.name,
-    content: await selectedFile.text(),
-  };
-}
       const resp = await fetch("/api/chat", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
