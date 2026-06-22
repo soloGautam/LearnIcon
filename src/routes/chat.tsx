@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/PageHeader";
-import { Send, Sparkles, Loader2, FolderPlus, Zap } from "lucide-react";
+import { Send, Sparkles, Loader2, FolderPlus, Paperclip, Zap } from "lucide-react";
 import { addXP, getUser, useUser, XP } from "@/lib/store";
 import { useXpToast } from "@/components/XpToast";
 import { getProject, createProject, getChat, saveChat, type ChatMessage, type ChatCard } from "@/lib/projects-store";
@@ -54,6 +54,8 @@ function Chat() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
     setMsgs(getChat(projectId));
@@ -113,20 +115,38 @@ function Chat() {
         .filter((m) => m.text)
         .map((m) => ({ role: m.role === "user" ? "user" : "assistant", content: m.text! }));
 
+let uploadedFile = null;
+
+if (selectedFile) {
+  uploadedFile = {
+    name: selectedFile.name,
+    content: await selectedFile.text(),
+  };
+}
+
+let uploadedFile = null;
+
+if (selectedFile) {
+  uploadedFile = {
+    name: selectedFile.name,
+    content: await selectedFile.text(),
+  };
+}
       const resp = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-  message: userMsg.text,
-  history,
-  hasProject: !!project,
-  project: project
-    ? {
-        name: project.name,
-        desc: project.desc,
-        buildIn: project.buildIn,
-      }
-    : null,
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    message: userMsg.text,
+    uploadedFile,
+    history,
+    hasProject: !!project,
+    project: project
+      ? {
+          name: project.name,
+          desc: project.desc,
+          buildIn: project.buildIn,
+        }
+      : null,
   }),
 });
 
@@ -278,9 +298,20 @@ if (aiData.type === "completed") {
           )}
           <div ref={endRef} />
         </div>
-        <div className="flex items-center gap-2 border-t border-border/60 p-3">
-          <Sparkles className="ml-2 size-4 text-primary" />
-          <input
+        
+       <div className="flex items-center gap-2 border-t border-border/60 p-3">
+       <Sparkles className="ml-2 size-4 text-primary" />
+
+       <input
+       ref={fileInputRef}
+       type="file"
+       className="hidden"
+       onChange={(e) => {
+       const file = e.target.files?.[0];
+      if (file) setSelectedFile(file);
+    }}
+  />
+            <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), send())}
@@ -288,6 +319,16 @@ if (aiData.type === "completed") {
             className="flex-1 bg-transparent px-2 py-2 text-sm outline-none placeholder:text-muted-foreground"
             disabled={loading}
           />
+
+<button
+  type="button"
+  onClick={() => fileInputRef.current?.click()}
+  disabled={loading}
+  className="grid size-9 place-items-center rounded-xl border border-border hover:bg-muted disabled:opacity-40"
+>
+  <Paperclip className="size-4" />
+</button>
+
           <button
             onClick={send}
             disabled={loading || !input.trim()}
@@ -297,6 +338,12 @@ if (aiData.type === "completed") {
           </button>
         </div>
       </div>
+{selectedFile && (
+  <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+    <Paperclip className="size-3" />
+    <span>{selectedFile.name}</span>
+  </div>
+)}
 
       <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-center text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1">
