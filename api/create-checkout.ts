@@ -9,6 +9,10 @@ export default async function handler(
   }
 
   const { plan } = req.body;
+const origin =
+  req.headers.origin ||
+  process.env.APP_URL ||
+  "https://learnicon-ai.vercel.app";
 
   const variants: Record<string, string | undefined> = {
     builder: process.env.LEMON_BUILDER_VARIANT_ID,
@@ -32,7 +36,15 @@ export default async function handler(
     body: JSON.stringify({
       data: {
         type: "checkouts",
-        attributes: {},
+        attributes: {
+  checkout_data: {},
+  checkout_options: {
+    embed: false,
+  },
+  product_options: {
+   redirect_url: `${origin}/payment-success`,
+  },
+},
         relationships: {
           store: {
             data: {

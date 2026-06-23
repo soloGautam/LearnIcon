@@ -165,7 +165,26 @@ function PlansPage() {
             key={p.name}
             p={p}
             current={state.plan === p.name}
-            onSelect={() => setPlan(p.name)}
+            onSelect={async () => {
+  const plan = p.name.toLowerCase();
+
+  if (plan === "explorer") {
+    setPlan("Explorer");
+    return;
+  }
+
+  const res = await fetch("/api/create-checkout", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ plan }),
+  });
+
+  const data = await res.json();
+
+  window.location.href = data.url;
+}}
           />
         ))}
       </div>
