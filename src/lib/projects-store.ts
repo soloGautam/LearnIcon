@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-
+import { supabase } from "@/lib/supabase";
+import { getUser } from "@/lib/store";
 export interface ProjectFile {
   name: string;
   content: string;
@@ -20,7 +21,13 @@ export interface Project {
 
 const KEY = "learnico:projects";
 const TONES = ["blue", "purple", "amber", "green", "pink"];
+async function getProfileId() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
+  return user?.id ?? null;
+}
 function read(): Project[] {
   if (typeof window === "undefined") return [];
   try {
@@ -58,21 +65,40 @@ export function getProject(id: string): Project | undefined {
   return read().find((p) => p.id === id);
 }
 
-export function createProject(input: { name: string; desc?: string; buildIn?: "app" | "external"; recommendedTools?: string[] }): Project {
-  const all = read();
-  const project: Project = {
-    id: crypto.randomUUID(),
-    name: input.name,
-    desc: input.desc || "No description yet.",
-    tone: TONES[Math.floor(Math.random() * TONES.length)],
-    progress: 0,
-    files: [],
-    buildIn: input.buildIn,
-    recommendedTools: input.recommendedTools,
-    createdAt: new Date().toISOString(),
-  };
-  write([project, ...all]);
-  return project;
+export async function createProject(input: {
+  name: string;
+  desc?: string;
+  buildIn?: "app" | "external";
+  recommendedTools?: string[];
+}) {
+  const profileId = await getProfileId();
+console.log("Supabase auth user:", profileId);
+
+  if (!profileId) {
+    throw new Error("User not logged in");
+  }
+
+  const { data, error } = await supabase
+    .from("projects")
+    .insert({
+      profile_id: profileId,
+      name: input.name,
+      description: input.desc,
+      tone: TONES[Math.floor(Math.random() * TONES.length)],
+      progress: 0,
+      build_in: input.buildIn,
+      recommended_tools: input.recommendedTools ?? [],
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  window.dispatchEvent(
+    new CustomEvent("learnico:projects-updated")
+  );
+
+  return data;
 }
 
 export function updateProject(id: string, patch: Partial<Project>): Project | undefined {
@@ -109,17 +135,49 @@ export function deleteProject(id: string): void {
 }
 
 export function useProjects(): [Project[], () => void] {
-  const [list, setList] = useState<Project[]>(() => read());
+  const [list, setList] = useState<Project[]>([]);
+
+  const refresh = async () => {
+    const profileId = await getProfileId();
+    if (!profileId) return;
+
+    const { data, error } = await supabase
+      .from("projects")
+      .select("*")
+      .eq("profile_id", profileId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    setList(
+      (data ?? []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        desc: p.description ?? "",
+        tone: p.tone,
+        progress: p.progress ?? 0,
+        files: [],
+        buildIn: p.build_in,
+        recommendedTools: p.recommended_tools ?? [],
+        createdAt: p.created_at,
+      }))
+    );
+  };
+
   useEffect(() => {
-    const refresh = () => setList(read());
+    refresh();
+
     window.addEventListener("learnico:projects-updated", refresh);
-    window.addEventListener("storage", refresh);
+
     return () => {
       window.removeEventListener("learnico:projects-updated", refresh);
-      window.removeEventListener("storage", refresh);
     };
   }, []);
-  return [list, () => setList(read())];
+
+  return [list, refresh];
 }
 
 // Chat thread storage (per project + a default unassigned thread)
@@ -141,26 +199,57 @@ export interface ChatMessage {
 const CHAT_PREFIX = "learnico:chat:";
 const DEFAULT_THREAD = "default";
 
-export function getChat(projectId?: string | null): ChatMessage[] {
-  if (typeof window === "undefined") return [];
-  const key = CHAT_PREFIX + (projectId || DEFAULT_THREAD);
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as ChatMessage[]) : [];
-  } catch {
-    return [];
-  }
+export async function getChat(projectId?: string | null): Promise<ChatMessage[]> {
+  if (!projectId) return [];
+
+  const { data, error } = await supabase
+    .from("messages")
+    .select("*")
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: true });
+
+  if (error || !data) return [];
+
+  return data.map((m: any) => ({
+    id: m.id,
+    role: m.role,
+    text: m.text,
+    cards: m.cards ?? undefined,
+    at: m.created_at,
+  }));
+}
+export async function saveChat(
+  projectId: string | null | undefined,
+  msgs: ChatMessage[]
+): Promise<void> {
+  if (!projectId) return;
+
+  await supabase.from("messages").delete().eq("project_id", projectId);
+
+  if (msgs.length === 0) return;
+
+  const rows = msgs.map((m) => ({
+    project_id: projectId,
+    role: m.role,
+    text: m.text ?? "",
+    cards: m.cards ?? null,
+    created_at: m.at,
+  }));
+
+const { data, error } = await supabase
+  .from("messages")
+  .insert(rows)
+  .select();
+
+console.log("Rows:", rows);
+console.log("Inserted:", data);
+
+if (error) {
+  console.error("saveChat error:", error);
 }
 
-export function saveChat(projectId: string | null | undefined, msgs: ChatMessage[]): void {
-  if (typeof window === "undefined") return;
-  const key = CHAT_PREFIX + (projectId || DEFAULT_THREAD);
-  try {
-    localStorage.setItem(key, JSON.stringify(msgs));
-  } catch {}
 }
 
 export function clearDefaultChat(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(CHAT_PREFIX + DEFAULT_THREAD);
+  // no-op (default thread removed after DB migration)
 }

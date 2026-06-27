@@ -49,21 +49,30 @@ function Chat() {
   const projectId = searchParams.get("project");
   const project = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId]);
 
-  const [msgs, setMsgs] = useState<ChatMessage[]>(() => getChat(projectId));
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const endRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+ const [msgs, setMsgs] = useState<ChatMessage[]>([]);
+const [input, setInput] = useState("");
+const [loading, setLoading] = useState(false);
+const [error, setError] = useState<string | null>(null);
+const endRef = useRef<HTMLDivElement>(null);
+const fileInputRef = useRef<HTMLInputElement>(null);
 const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  useEffect(() => {
-    setMsgs(getChat(projectId));
-  }, [projectId]);
+useEffect(() => {
+  async function loadChat() {
+    const history = await getChat(projectId);
+    setMsgs(history);
+  }
 
-  useEffect(() => {
-    saveChat(projectId, msgs);
-  }, [projectId, msgs]);
+  loadChat();
+}, [projectId]);
+
+useEffect(() => {
+  async function persistChat() {
+    await saveChat(projectId, msgs);
+  }
+
+  persistChat();
+}, [projectId, msgs]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -151,7 +160,7 @@ if (!data) throw new Error("Empty response");
 const aiData = data;
       let activeProjectId = projectId;
       if (!project && data.projectSuggestion?.name) {
-        const created = createProject({
+       const created = await createProject({
           name: data.projectSuggestion.name,
           desc: data.projectSuggestion.desc,
           buildIn: data.projectSuggestion.buildIn,
@@ -159,7 +168,7 @@ const aiData = data;
         });
         activeProjectId = created.id;
         // Move conversation under the new project, then route there.
-        saveChat(created.id, nextMsgs);
+        await saveChat(created.id, nextMsgs);
         setSearchParams({ project: created.id }, { replace: true });
       }
 
@@ -222,7 +231,9 @@ if (aiData.type === "completed") {
 
       const finalMsgs = [...nextMsgs, aiMsg];
       setMsgs(finalMsgs);
-      if (activeProjectId) saveChat(activeProjectId, finalMsgs);
+     if (activeProjectId) {
+  await saveChat(activeProjectId, finalMsgs);
+}
 
       // Deduct credits based on actual server-reported cost
       const cost = typeof data.creditCost === "number" ? data.creditCost : CREDIT_COST.AI_RESPONSE;

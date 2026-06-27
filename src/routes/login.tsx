@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { setAuth, clearAuth } from "@/lib/auth-store";
+import { supabase } from "@/lib/supabase";
 import { setUserName } from "@/lib/store";
 import { GraduationCap, Building2, ArrowRight, Sparkles } from "lucide-react";
 
@@ -13,15 +14,82 @@ function LoginPage() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLearnerSignIn = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLearnerSignIn = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  try {
     setLoading(true);
-    // Always start a fresh local profile on a new sign-in.
+
+    const { data, error } = await supabase.auth.signUp({
+  email,
+  password: "learnicon123",
+  options: {
+    data: {
+      name,
+    },
+  },
+});
+
+console.log("SIGNUP DATA:", data);
+console.log("SIGNUP ERROR:", error);
+
+if (
+  error &&
+  !error.message.toLowerCase().includes("already")
+) {
+  alert(error.message);
+  return;
+}
+
+const {
+  data: signInData,
+  error: signInError,
+} = await supabase.auth.signInWithPassword({
+  email,
+  password: "learnicon123",
+});
+
+console.log("SUPABASE DATA:", signInData);
+console.log("SUPABASE ERROR:", signInError);
+
+if (signInError) {
+  alert(signInError.message);
+  return;
+}
+
+    const user = signInData.user;
+
+    if (!user) {
+      alert("Could not sign in.");
+      return;
+    }
+
+    await supabase
+      .from("profiles")
+      .upsert({
+        id: user.id,
+        email,
+        name,
+        user_type: "learner",
+      });
+
     clearAuth();
-    setAuth({ type: "learner", corporate: null });
-    setUserName(name.trim() || "Learner");
+
+    setAuth({
+      type: "learner",
+      corporate: null,
+    });
+
+    setUserName(name);
+
     navigate("/");
-  };
+  } catch (err) {
+    console.error(err);
+    alert("Login failed");
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleCorporateSignIn = (e: React.FormEvent) => {
     e.preventDefault();

@@ -205,14 +205,39 @@ function Dashboard() {
             <ArrowUpRight className="size-4 text-muted-foreground" />
           </Link>
 
-          <div className="tone-purple rounded-2xl p-4">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-foreground/70">
-              <ShieldCheck className="size-4" /> Equipped plan
-            </div>
-            <div className="mt-2 font-display text-2xl text-foreground">{user.plan} tier</div>
-            <div className="text-xs text-foreground/60">Unlimited AI · Verified builder badge</div>
-            <Link to="/plans" className="mt-3 inline-flex text-xs font-medium text-primary hover:underline">Manage plan →</Link>
-          </div>
+<div className="tone-purple rounded-2xl p-4">
+  <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-foreground/70">
+    <ShieldCheck className="size-4" /> Equipped plan
+  </div>
+
+  <div className="mt-2 font-display text-2xl text-foreground">
+    {user.plan} tier
+  </div>
+
+  <div className="mt-3 space-y-1 text-xs text-foreground/70">
+    <div>Credits remaining: {user.credits}</div>
+    <div>Subscription: Active</div>
+    <div>Renewal: Coming soon</div>
+  </div>
+
+  <div className="mt-4 flex gap-2">
+    <Link
+      to="/plans"
+      className="rounded-lg bg-primary px-3 py-2 text-xs font-medium text-white"
+    >
+      Upgrade Plan
+    </Link>
+
+    <a
+      href="https://app.lemonsqueezy.com/my-orders"
+      target="_blank"
+      rel="noreferrer"
+      className="rounded-lg border border-border px-3 py-2 text-xs font-medium"
+    >
+      Manage Subscription
+    </a>
+  </div>
+</div>
 
           <a href="#" className="block px-1 text-xs text-muted-foreground underline-offset-4 hover:underline">Privacy Policy</a>
 

@@ -13,11 +13,14 @@ function NewProject() {
   const [error, setError] = useState("");
   const [earned, setEarned] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+ const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError("Give your project a name."); return; }
 
-    const project = createProject({ name: name.trim(), desc: desc.trim() });
+   const project = await createProject({
+  name: name.trim(),
+  desc: desc.trim(),
+});
     const next = addXP(XP.PROJECT_CREATE, `Created project: ${project.name}`);
     update(next);
     setEarned(true);
