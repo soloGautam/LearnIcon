@@ -66,14 +66,6 @@ useEffect(() => {
   loadChat();
 }, [projectId]);
 
-useEffect(() => {
-  async function persistChat() {
-    await saveChat(projectId, msgs);
-  }
-
-  persistChat();
-}, [projectId, msgs]);
-
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs, loading]);
