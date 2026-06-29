@@ -47,7 +47,30 @@ function Chat() {
   const { state: credits, remaining, allowance } = useCredits();
   const [searchParams, setSearchParams] = useSearchParams();
   const projectId = searchParams.get("project");
-  const project = useMemo(() => (projectId ? getProject(projectId) : undefined), [projectId]);
+  const [project, setProject] = useState<Awaited<ReturnType<typeof getProject>>>();
+
+useEffect(() => {
+  let cancelled = false;
+
+  async function loadProject() {
+    if (!projectId) {
+      setProject(undefined);
+      return;
+    }
+
+    const p = await getProject(projectId);
+
+    if (!cancelled) {
+      setProject(p);
+    }
+  }
+
+  loadProject();
+
+  return () => {
+    cancelled = true;
+  };
+}, [projectId]);
 
  const [msgs, setMsgs] = useState<ChatMessage[]>([]);
 const [input, setInput] = useState("");

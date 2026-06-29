@@ -61,8 +61,26 @@ export function getProjects(): Project[] {
   return read();
 }
 
-export function getProject(id: string): Project | undefined {
-  return read().find((p) => p.id === id);
+export async function getProject(id: string): Promise<Project | undefined> {
+  const { data, error } = await supabase
+    .from("projects")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) return undefined;
+
+  return {
+    id: data.id,
+    name: data.name,
+    desc: data.description ?? "",
+    tone: data.tone ?? "balanced",
+    progress: data.progress ?? 0,
+    files: [],
+    buildIn: data.build_in,
+    recommendedTools: data.recommended_tools ?? [],
+    createdAt: data.created_at,
+  };
 }
 
 export async function createProject(input: {
