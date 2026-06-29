@@ -223,6 +223,7 @@ if (aiData.type === "completed") {
 
       const finalMsgs = [...nextMsgs, aiMsg];
       setMsgs(finalMsgs);
+console.log("activeProjectId =", activeProjectId);
      if (activeProjectId) {
   await saveChat(activeProjectId, finalMsgs);
 }
