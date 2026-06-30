@@ -165,13 +165,14 @@ if (selectedFile) {
       : null,
   }),
 });
-      console.log("FETCH FINISHED", resp.status);
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: `Request failed (${resp.status})` }));
         throw new Error(err.error ?? `Request failed (${resp.status})`);
       }
-      const data = await resp.json();
+      const raw = await resp.text();
+console.log("RAW RESPONSE:", raw);
+const data = JSON.parse(raw);
 if (!data) throw new Error("Empty response");
 
 const aiData = data;
@@ -191,44 +192,53 @@ const aiData = data;
 
       let cards: ChatCard[] = [];
 
-      if (aiData.message) {
-        cards.push({
-          kind: "intro",
-          title: aiData.title || aiData.type || "LearnIcon AI",
-          body: aiData.message,
-        });
-      }
+if (aiData.type === "project") {
+  cards = [
+    {
+      kind: "intro",
+      title: aiData.overview?.title || "Project Overview",
+      body: aiData.overview?.content || "",
+    },
 
-      if (aiData.overview) {
-        cards.push({
-          kind: "intro",
-          title: aiData.overview.title || "Overview",
-          body:
-            aiData.overview.description ||
-            aiData.overview.content ||
-            JSON.stringify(aiData.overview),
-        });
-      }
+    ...(aiData.steps || []).slice(0, 5).map((s: any) => ({
+      kind: "step",
+      title: s.title,
+      body: s.content,
+    })),
+  ];
+}
 
-      if (Array.isArray(aiData.lessons)) {
-        cards.push(
-          ...aiData.lessons.map((l: any) => ({
-            kind: "step",
-            title: l.lessonTitle || l.title || "Lesson",
-            body: Array.isArray(l.instructions)
-              ? l.instructions.join("\n")
-              : (l.instructions || ""),
-          }))
-        );
-      }
+if (aiData.type === "greeting") {
+  cards = [
+    {
+      kind: "intro",
+      title: "Welcome",
+      body: aiData.message,
+    },
+  ];
+}
 
-      if (cards.length === 0) {
-        cards.push({
-          kind: "intro",
-          title: aiData.type || "AI Response",
-          body: JSON.stringify(aiData, null, 2),
-        });
-      }
+if (aiData.type === "chat") {
+  cards = [
+    {
+      kind: "intro",
+      title: "LearnIcon AI",
+      body: aiData.message,
+    },
+  ];
+}
+
+if (aiData.type === "completed") {
+  cards = [
+    {
+      kind: "intro",
+      title: "🎉 Project Completed",
+      body: aiData.message,
+    },
+  ];
+
+  // quiz UI will be added next
+}
 
       const aiMsg: ChatMessage = {
         id: crypto.randomUUID(),
