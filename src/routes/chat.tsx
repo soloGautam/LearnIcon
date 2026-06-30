@@ -108,6 +108,7 @@ useEffect(() => {
   const visibleMsgs = msgs.length === 0 ? [greeting] : msgs;
 
   async function send() {
+console.log("SEND START");
     if (!input.trim() || loading) return;
     // Reserve credits up-front using the minimum cost (2). Refunded/topped-up after the response based on actual cost.
     if (!canSpend(CREDIT_COST.AI_RESPONSE)) {
@@ -247,6 +248,7 @@ if (aiData.type === "completed") {
       const finalMsgs = [...nextMsgs, aiMsg];
       setMsgs(finalMsgs);
 console.log("activeProjectId =", activeProjectId);
+console.log("ABOUT TO CALL saveChat", activeProjectId);
      if (activeProjectId) {
   await saveChat(activeProjectId, finalMsgs);
 }
