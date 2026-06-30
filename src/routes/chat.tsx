@@ -177,22 +177,22 @@ if (!data) throw new Error("Empty response");
 
 const aiData = data;
       let activeProjectId = projectId;
-      if (!project && data.projectSuggestion?.name) {
-       const created = await createProject({
-          name: data.projectSuggestion.name,
-          desc: data.projectSuggestion.desc,
-          buildIn: data.projectSuggestion.buildIn,
-          recommendedTools: data.projectSuggestion.recommendedTools,
-        });
-        activeProjectId = created.id;
-        // Move conversation under the new project, then route there.
-        await saveChat(created.id, nextMsgs);
-        setSearchParams({ project: created.id }, { replace: true });
-      }
+      if (!project && aiData.type === "module" && aiData.overview) {
+  const created = await createProject({
+    name: aiData.overview.title,
+    desc: aiData.overview.description,
+  });
+
+  activeProjectId = created.id;
+
+  await saveChat(created.id, nextMsgs);
+
+  setSearchParams({ project: created.id }, { replace: true });
+}
 
       let cards: ChatCard[] = [];
 
-if (aiData.type === "project") {
+if (aiData.type === "module") {
   cards = [
     {
       kind: "intro",
@@ -200,10 +200,10 @@ if (aiData.type === "project") {
       body: aiData.overview?.content || "",
     },
 
-    ...(aiData.steps || []).slice(0, 5).map((s: any) => ({
+    ...(aiData.lessons || []).slice(0, 5).map((s: any) => ({
       kind: "step",
-      title: s.title,
-      body: s.content,
+      title: s.lessonTitle,
+      body: Array.isArray(s.instructions) ? s.instructions.join("\n") : "",
     })),
   ];
 }
