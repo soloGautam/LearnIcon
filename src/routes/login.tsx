@@ -48,6 +48,11 @@ const {
   email,
   password: "learnicon123",
 });
+const {
+  data: { session },
+} = await supabase.auth.getSession();
+
+console.log("SESSION:", session);
 
 console.log("SUPABASE DATA:", signInData);
 console.log("SUPABASE ERROR:", signInError);
