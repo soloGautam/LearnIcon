@@ -72,6 +72,7 @@ export async function createProject(input: {
   recommendedTools?: string[];
 }) {
   const profileId = await getProfileId();
+  console.log("createProject() profileId =", profileId);
 console.log("Supabase auth user:", profileId);
 
   if (!profileId) {
@@ -139,6 +140,7 @@ export function useProjects(): [Project[], () => void] {
 
   const refresh = async () => {
     const profileId = await getProfileId();
+  console.log("createProject() profileId =", profileId);
     if (!profileId) return;
 
     const { data, error } = await supabase
