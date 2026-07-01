@@ -76,23 +76,7 @@ export async function createProject(input: {
 console.log("Supabase auth user:", profileId);
 
   if (!profileId) {
-    const project = {
-      id: crypto.randomUUID(),
-      name: input.name,
-      desc: input.desc ?? "",
-      tone: TONES[Math.floor(Math.random() * TONES.length)],
-      progress: 0,
-      files: [],
-      buildIn: input.buildIn,
-      recommendedTools: input.recommendedTools ?? [],
-      createdAt: new Date().toISOString(),
-    };
-
-    const list = read();
-    list.unshift(project);
-    write(list);
-
-    return project;
+    throw new Error("User not logged in");
   }
 
   const { data, error } = await supabase
