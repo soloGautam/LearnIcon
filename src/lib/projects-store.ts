@@ -242,6 +242,17 @@ export async function saveChat(
 ): Promise<void> {
   if (!projectId) return;
 
+  const profileId = await getProfileId();
+
+  // Guest mode → save locally
+  if (!profileId) {
+    localStorage.setItem(
+      `learnico:chat:${projectId}`,
+      JSON.stringify(msgs)
+    );
+    return;
+  }
+
   await supabase.from("messages").delete().eq("project_id", projectId);
 
   if (msgs.length === 0) return;
@@ -254,18 +265,11 @@ export async function saveChat(
     created_at: m.at,
   }));
 
-const { data, error } = await supabase
-  .from("messages")
-  .insert(rows)
-  .select();
+  const { error } = await supabase
+    .from("messages")
+    .insert(rows);
 
-console.log("Rows:", rows);
-console.log("Inserted:", data);
-
-if (error) {
-  console.error("saveChat error:", error);
-}
-
+  if (error) throw error;
 }
 
 export function clearDefaultChat(): void {
